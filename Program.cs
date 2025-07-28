@@ -11,7 +11,7 @@ builder.Services.AddControllersWithViews();
 
 // Add Entity Framework
 builder.Services.AddDbContext<CoffeeShopContext>(options =>
-    options.UseSqlite("Data Source=coffeeshop.db"));
+    options.UseSqlite("Data Source=coffeeshop.sqlite3"));
 
 // Configure HTTPS redirection for development
 builder.Services.AddHttpsRedirection(options =>
@@ -38,8 +38,8 @@ builder.Services.AddAuthentication(options =>
 {
     // Microsoft Azure AD / Office 365 configuration
     options.Authority = "https://login.microsoftonline.com/common/v2.0";
-    options.ClientId = builder.Configuration["Authentication:Microsoft:ClientId"] ?? "your-client-id";
-    options.ClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"] ?? "your-client-secret";
+    options.ClientId = builder.Configuration["Authentication:Microsoft:ClientId"] ?? throw new InvalidOperationException("OpenId Connect ClientId is not configured.");
+    options.ClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"] ?? throw new InvalidOperationException("OpenId Connect ClientSecret is not configured.");
     options.ResponseType = OpenIdConnectResponseType.Code;
     options.CallbackPath = "/signin-microsoft";
     options.SignedOutCallbackPath = "/signout-callback-microsoft";
