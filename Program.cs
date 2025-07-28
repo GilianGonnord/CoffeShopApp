@@ -1,4 +1,5 @@
 using CoffeeShopApp.Data;
+using CoffeeShopApp.Services;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.EntityFrameworkCore;
@@ -20,11 +21,19 @@ builder.Services.AddHttpsRedirection(options =>
     options.HttpsPort = 5001;
 });
 
+// Check if Microsoft authentication is configured
+var microsoftClientId = builder.Configuration["Authentication:Microsoft:ClientId"];
+var microsoftClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"];
+var isMicrosoftAuthEnabled = !string.IsNullOrEmpty(microsoftClientId) && !string.IsNullOrEmpty(microsoftClientSecret);
+
 // Add authentication
-builder.Services.AddAuthentication(options =>
+var authBuilder = builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+    if (isMicrosoftAuthEnabled)
+    {
+        options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+    }
 })
 .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
 {
@@ -33,43 +42,52 @@ builder.Services.AddAuthentication(options =>
     options.AccessDeniedPath = "/Account/AccessDenied";
     options.ExpireTimeSpan = TimeSpan.FromHours(24);
     options.SlidingExpiration = true;
-})
-.AddOpenIdConnect(OpenIdConnectDefaults.AuthenticationScheme, options =>
-{
-    // Microsoft Azure AD / Office 365 configuration
-    options.Authority = "https://login.microsoftonline.com/common/v2.0";
-    options.ClientId = builder.Configuration["Authentication:Microsoft:ClientId"] ?? throw new InvalidOperationException("OpenId Connect ClientId is not configured.");
-    options.ClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"] ?? throw new InvalidOperationException("OpenId Connect ClientSecret is not configured.");
-    options.ResponseType = OpenIdConnectResponseType.Code;
-    options.CallbackPath = "/signin-microsoft";
-    options.SignedOutCallbackPath = "/signout-callback-microsoft";
-
-    // Scopes
-    options.Scope.Clear();
-    options.Scope.Add("openid");
-    options.Scope.Add("profile");
-    options.Scope.Add("email");
-
-    // Token validation
-    options.TokenValidationParameters.ValidateIssuer = false; // Allow multiple tenants
-    options.TokenValidationParameters.NameClaimType = "name";
-    options.TokenValidationParameters.RoleClaimType = "role";
-
-    // Save tokens
-    options.SaveTokens = true;
-    options.GetClaimsFromUserInfoEndpoint = true;
-
-    // Events
-    options.Events = new OpenIdConnectEvents
-    {
-        OnRemoteFailure = context =>
-        {
-            context.Response.Redirect("/Account/Login?error=microsoft_auth_failed");
-            context.HandleResponse();
-            return Task.CompletedTask;
-        }
-    };
 });
+
+// Only add OpenID Connect if Microsoft authentication is configured
+if (isMicrosoftAuthEnabled)
+{
+    authBuilder.AddOpenIdConnect(OpenIdConnectDefaults.AuthenticationScheme, options =>
+    {
+        // Microsoft Azure AD / Office 365 configuration
+        options.Authority = "https://login.microsoftonline.com/common/v2.0";
+        options.ClientId = microsoftClientId!;
+        options.ClientSecret = microsoftClientSecret!;
+        options.ResponseType = OpenIdConnectResponseType.Code;
+        options.CallbackPath = "/signin-microsoft";
+        options.SignedOutCallbackPath = "/signout-callback-microsoft";
+
+        // Scopes
+        options.Scope.Clear();
+        options.Scope.Add("openid");
+        options.Scope.Add("profile");
+        options.Scope.Add("email");
+
+        // Token validation
+        options.TokenValidationParameters.ValidateIssuer = false; // Allow multiple tenants
+        options.TokenValidationParameters.NameClaimType = "name";
+        options.TokenValidationParameters.RoleClaimType = "role";
+
+        // Save tokens
+        options.SaveTokens = true;
+        options.GetClaimsFromUserInfoEndpoint = true;
+
+        // Events
+        options.Events = new OpenIdConnectEvents
+        {
+            OnRemoteFailure = context =>
+            {
+                context.Response.Redirect("/Account/Login?error=microsoft_auth_failed");
+                context.HandleResponse();
+                return Task.CompletedTask;
+            }
+        };
+    });
+}
+
+// Register the Microsoft auth availability as a service
+builder.Services.AddSingleton<IMicrosoftAuthService>(provider =>
+    new MicrosoftAuthService(isMicrosoftAuthEnabled));
 
 var app = builder.Build();
 
