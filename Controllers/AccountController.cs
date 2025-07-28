@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using Claim = System.Security.Claims.Claim;
 
 namespace CoffeeShopApp.Controllers
 {
@@ -190,7 +189,7 @@ namespace CoffeeShopApp.Controllers
             await _context.SaveChangesAsync();
 
             // Add default claim
-            var defaultClaim = new CoffeeShopApp.Models.Claim
+            var defaultClaim = new UserClaim
             {
                 UserId = user.Id,
                 ClaimType = CoffeeClaims.CanViewCoffee,

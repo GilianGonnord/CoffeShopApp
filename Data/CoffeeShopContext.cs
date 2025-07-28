@@ -11,7 +11,7 @@ public class CoffeeShopContext : DbContext
     }
 
     public DbSet<User> Users { get; set; }
-    public DbSet<Claim> Claims { get; set; }
+    public DbSet<UserClaim> Claims { get; set; }
     public DbSet<Coffee> Coffees { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -30,7 +30,7 @@ public class CoffeeShopContext : DbContext
         });
 
         // Configure Claim entity
-        modelBuilder.Entity<Claim>(entity =>
+        modelBuilder.Entity<UserClaim>(entity =>
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.ClaimType).IsRequired().HasMaxLength(100);
@@ -83,14 +83,14 @@ public class CoffeeShopContext : DbContext
         // Seed claims
         var adminClaims = new[]
         {
-                new Claim { Id = 1, UserId = 1, ClaimType = CoffeeClaims.IsManager, ClaimValue = "true" },
-                new Claim { Id = 2, UserId = 1, ClaimType = CoffeeClaims.CanManageCoffee, ClaimValue = "true" },
-                new Claim { Id = 3, UserId = 1, ClaimType = CoffeeClaims.CanViewCoffee, ClaimValue = "true" },
-                new Claim { Id = 4, UserId = 2, ClaimType = CoffeeClaims.IsBarista, ClaimValue = "true" },
-                new Claim { Id = 5, UserId = 2, ClaimType = CoffeeClaims.CanViewCoffee, ClaimValue = "true" }
+                new UserClaim { Id = 1, UserId = 1, ClaimType = CoffeeClaims.IsManager, ClaimValue = "true" },
+                new UserClaim { Id = 2, UserId = 1, ClaimType = CoffeeClaims.CanManageCoffee, ClaimValue = "true" },
+                new UserClaim { Id = 3, UserId = 1, ClaimType = CoffeeClaims.CanViewCoffee, ClaimValue = "true" },
+                new UserClaim { Id = 4, UserId = 2, ClaimType = CoffeeClaims.IsBarista, ClaimValue = "true" },
+                new UserClaim { Id = 5, UserId = 2, ClaimType = CoffeeClaims.CanViewCoffee, ClaimValue = "true" }
             };
 
-        modelBuilder.Entity<Claim>().HasData(adminClaims);
+        modelBuilder.Entity<UserClaim>().HasData(adminClaims);
 
         // Seed some coffee data
         var coffees = new[]

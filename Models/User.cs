@@ -20,5 +20,5 @@ public class User
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation property
-    public virtual ICollection<Claim> Claims { get; set; } = new List<Claim>();
+    public virtual ICollection<UserClaim> Claims { get; set; } = new List<UserClaim>();
 }

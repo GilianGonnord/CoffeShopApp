@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace CoffeeShopApp.Models;
 
-public class Claim
+public class UserClaim
 {
     public int Id { get; set; }
 
