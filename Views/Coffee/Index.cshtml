@@ -1,0 +1,95 @@
+@model IEnumerable<CoffeeShopApp.Models.Coffee>
+
+@{
+    ViewData["Title"] = "Coffee Menu";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="fas fa-seedling coffee-icon"></i> Coffee Menu</h1>
+    @if (User.HasClaim("CanManageCoffee", "true"))
+    {
+        <a asp-action="Create" class="btn btn-coffee">
+            <i class="fas fa-plus"></i> Add New Coffee
+        </a>
+    }
+</div>
+
+@if (!Model.Any())
+{
+    <div class="card card-coffee">
+        <div class="card-body text-center">
+            <i class="fas fa-mug-hot fa-3x coffee-icon mb-3"></i>
+            <h4>No Coffee Available</h4>
+            <p class="text-muted">There are currently no coffee beans in our inventory.</p>
+            @if (User.HasClaim("CanManageCoffee", "true"))
+            {
+                <a asp-action="Create" class="btn btn-coffee">
+                    <i class="fas fa-plus"></i> Add First Coffee
+                </a>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="row">
+        @foreach (var coffee in Model)
+        {
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card card-coffee h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">@coffee.Name</h5>
+                        @if (coffee.IsAvailable)
+                        {
+                            <span class="badge bg-success">Available</span>
+                        }
+                        else
+                        {
+                            <span class="badge bg-secondary">Out of Stock</span>
+                        }
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text text-muted">@coffee.Description</p>
+                        
+                        <div class="row mb-2">
+                            <div class="col-6">
+                                <small class="text-muted">
+                                    <i class="fas fa-globe coffee-icon"></i> Origin:
+                                </small><br>
+                                <strong>@coffee.Origin</strong>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">
+                                    <i class="fas fa-fire coffee-icon"></i> Roast:
+                                </small><br>
+                                <strong>@coffee.RoastLevel</strong>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <h4 class="text-success">
+                                <i class="fas fa-dollar-sign"></i>@coffee.Price.ToString("F2")
+                            </h4>
+                        </div>
+                    </div>
+                    <div class="card-footer bg-transparent">
+                        <div class="btn-group w-100" role="group">
+                            <a asp-action="Details" asp-route-id="@coffee.Id" class="btn btn-outline-secondary">
+                                <i class="fas fa-eye"></i> Details
+                            </a>
+                            @if (User.HasClaim("CanManageCoffee", "true"))
+                            {
+                                <a asp-action="Edit" asp-route-id="@coffee.Id" class="btn btn-outline-primary">
+                                    <i class="fas fa-edit"></i> Edit
+                                </a>
+                                <a asp-action="Delete" asp-route-id="@coffee.Id" class="btn btn-outline-danger">
+                                    <i class="fas fa-trash"></i> Delete
+                                </a>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}

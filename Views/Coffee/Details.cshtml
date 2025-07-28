@@ -1,0 +1,69 @@
+@model CoffeeShopApp.Models.Coffee
+
+@{
+    ViewData["Title"] = "Coffee Details";
+}
+
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card card-coffee">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2><i class="fas fa-seedling coffee-icon"></i> @Model.Name</h2>
+                @if (Model.IsAvailable)
+                {
+                    <span class="badge bg-success fs-6">Available</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary fs-6">Out of Stock</span>
+                }
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h5>Description</h5>
+                        <p class="text-muted">@Model.Description</p>
+                        
+                        <h5>Price</h5>
+                        <h3 class="text-success mb-4">
+                            <i class="fas fa-dollar-sign"></i>@Model.Price.ToString("F2")
+                        </h3>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="row">
+                            <div class="col-6 mb-3">
+                                <h6><i class="fas fa-globe coffee-icon"></i> Origin</h6>
+                                <p class="mb-0">@Model.Origin</p>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <h6><i class="fas fa-fire coffee-icon"></i> Roast Level</h6>
+                                <p class="mb-0">@Model.RoastLevel</p>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <h6><i class="fas fa-calendar coffee-icon"></i> Added</h6>
+                            <p class="text-muted">@Model.CreatedAt.ToString("MMM dd, yyyy")</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-transparent">
+                <div class="btn-group" role="group">
+                    <a asp-action="Index" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Menu
+                    </a>
+                    @if (User.HasClaim("CanManageCoffee", "true"))
+                    {
+                        <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-coffee">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        <a asp-action="Delete" asp-route-id="@Model.Id" class="btn btn-outline-danger">
+                            <i class="fas fa-trash"></i> Delete
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

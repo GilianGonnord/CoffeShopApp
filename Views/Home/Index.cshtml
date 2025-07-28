@@ -1,0 +1,125 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <div class="hero-section py-5">
+        <h1 class="display-4 mb-4">
+            <i class="fas fa-coffee coffee-icon"></i> 
+            Welcome to Coffee Shop
+        </h1>
+        <p class="lead">Your premium coffee management system</p>
+        
+        @if (User.Identity != null && User.Identity.IsAuthenticated && !string.IsNullOrEmpty(User.Identity.Name))
+        {
+            <div class="row mt-5">
+                <div class="col-md-4 mb-3">
+                    <div class="card card-coffee h-100">
+                        <div class="card-body text-center">
+                            <i class="fas fa-user-circle fa-3x coffee-icon mb-3"></i>
+                            <h5>Welcome back, @User.Identity.Name!</h5>
+                            <p class="text-muted">
+                                @if (User.HasClaim("IsManager", "true"))
+                                {
+                                    <span class="badge bg-warning text-dark">
+                                        <i class="fas fa-crown"></i> Manager
+                                    </span>
+                                }
+                                @if (User.HasClaim("IsBarista", "true"))
+                                {
+                                    <span class="badge bg-info">
+                                        <i class="fas fa-coffee"></i> Barista
+                                    </span>
+                                }
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                @if (User.HasClaim("CanViewCoffee", "true"))
+                {
+                    <div class="col-md-4 mb-3">
+                        <div class="card card-coffee h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-seedling fa-3x coffee-icon mb-3"></i>
+                                <h5>Coffee Menu</h5>
+                                <p class="text-muted">Browse our premium coffee selection</p>
+                                <a asp-controller="Coffee" asp-action="Index" class="btn btn-coffee">
+                                    <i class="fas fa-eye"></i> View Coffee
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                }
+                
+                @if (User.HasClaim("CanManageCoffee", "true"))
+                {
+                    <div class="col-md-4 mb-3">
+                        <div class="card card-coffee h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-plus-circle fa-3x coffee-icon mb-3"></i>
+                                <h5>Add New Coffee</h5>
+                                <p class="text-muted">Add new coffee to the menu</p>
+                                <a asp-controller="Coffee" asp-action="Create" class="btn btn-coffee">
+                                    <i class="fas fa-plus"></i> Add Coffee
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="row mt-5 justify-content-center">
+                <div class="col-md-6">
+                    <div class="card card-coffee">
+                        <div class="card-body text-center">
+                            <i class="fas fa-mug-hot fa-4x coffee-icon mb-4"></i>
+                            <h3>Get Started</h3>
+                            <p class="text-muted mb-4">Join our coffee community and explore premium beans from around the world</p>
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                                <a asp-controller="Account" asp-action="Login" class="btn btn-coffee me-md-2">
+                                    <i class="fas fa-sign-in-alt"></i> Login
+                                </a>
+                                <a asp-controller="Account" asp-action="Register" class="btn btn-outline-secondary">
+                                    <i class="fas fa-user-plus"></i> Register
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-4">
+        <div class="card card-coffee mb-4">
+            <div class="card-body text-center">
+                <i class="fas fa-globe coffee-icon fa-2x mb-3"></i>
+                <h5>Premium Origins</h5>
+                <p class="text-muted">Coffee beans sourced from the finest regions worldwide</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-coffee mb-4">
+            <div class="card-body text-center">
+                <i class="fas fa-fire coffee-icon fa-2x mb-3"></i>
+                <h5>Perfect Roasting</h5>
+                <p class="text-muted">Expert roasting techniques to bring out the best flavors</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card card-coffee mb-4">
+            <div class="card-body text-center">
+                <i class="fas fa-heart coffee-icon fa-2x mb-3"></i>
+                <h5>Crafted with Love</h5>
+                <p class="text-muted">Every cup is prepared with passion and attention to detail</p>
+            </div>
+        </div>
+    </div>
+</div>
