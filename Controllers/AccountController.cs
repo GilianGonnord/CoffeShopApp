@@ -3,7 +3,6 @@ using CoffeeShopApp.Models;
 using CoffeeShopApp.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
@@ -13,12 +12,12 @@ namespace CoffeeShopApp.Controllers;
 public class AccountController : Controller
 {
     private readonly CoffeeShopContext _context;
-    private readonly IMicrosoftAuthService _microsoftAuthService;
+    private readonly IExternalAuthService _externalAuthService;
 
-    public AccountController(CoffeeShopContext context, IMicrosoftAuthService microsoftAuthService)
+    public AccountController(CoffeeShopContext context, IExternalAuthService externalAuthService)
     {
         _context = context;
-        _microsoftAuthService = microsoftAuthService;
+        _externalAuthService = externalAuthService;
     }
 
     [HttpGet]
@@ -28,14 +27,14 @@ public class AccountController : Controller
         {
             switch (error)
             {
-                case "microsoft_auth_failed":
-                    ViewBag.Error = "Microsoft authentication failed. Please try again.";
+                case "external_auth_failed":
+                    ViewBag.Error = $"{_externalAuthService.DisplayName} authentication failed. Please try again.";
                     break;
                 case "user_not_found":
-                    ViewBag.Error = "No account found with your Microsoft email address. Please contact an administrator.";
+                    ViewBag.Error = $"No account found with your {_externalAuthService.DisplayName} email address. Please contact an administrator.";
                     break;
-                case "microsoft_not_configured":
-                    ViewBag.Error = "Microsoft authentication is not configured on this server.";
+                case "external_not_configured":
+                    ViewBag.Error = "External authentication is not configured on this server.";
                     break;
                 default:
                     ViewBag.Error = "An error occurred during authentication.";
@@ -43,8 +42,11 @@ public class AccountController : Controller
             }
         }
 
-        // Pass Microsoft auth availability to the view
-        ViewBag.IsMicrosoftAuthEnabled = _microsoftAuthService.IsEnabled;
+        // Pass external auth information to the view
+        ViewBag.IsExternalAuthEnabled = _externalAuthService.IsEnabled;
+        ViewBag.ExternalAuthDisplayName = _externalAuthService.DisplayName;
+        ViewBag.ExternalAuthProtocol = _externalAuthService.Protocol.ToString();
+
         return View();
     }
 
@@ -54,7 +56,9 @@ public class AccountController : Controller
         if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
         {
             ViewBag.Error = "Username and password are required.";
-            ViewBag.IsMicrosoftAuthEnabled = _microsoftAuthService.IsEnabled;
+            ViewBag.IsExternalAuthEnabled = _externalAuthService.IsEnabled;
+            ViewBag.ExternalAuthDisplayName = _externalAuthService.DisplayName;
+            ViewBag.ExternalAuthProtocol = _externalAuthService.Protocol.ToString();
             return View();
         }
 
@@ -65,7 +69,9 @@ public class AccountController : Controller
         if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
         {
             ViewBag.Error = "Invalid username or password.";
-            ViewBag.IsMicrosoftAuthEnabled = _microsoftAuthService.IsEnabled;
+            ViewBag.IsExternalAuthEnabled = _externalAuthService.IsEnabled;
+            ViewBag.ExternalAuthDisplayName = _externalAuthService.DisplayName;
+            ViewBag.ExternalAuthProtocol = _externalAuthService.Protocol.ToString();
             return View();
         }
 
@@ -74,49 +80,48 @@ public class AccountController : Controller
     }
 
     [HttpGet]
-    public IActionResult LoginWithMicrosoft()
+    public IActionResult LoginWithExternal()
     {
-        // Check if Microsoft authentication is enabled
-        if (!_microsoftAuthService.IsEnabled)
+        // Check if external authentication is enabled
+        if (!_externalAuthService.IsEnabled)
         {
-            return RedirectToAction("Login", new { error = "microsoft_not_configured" });
+            return RedirectToAction("Login", new { error = "external_not_configured" });
         }
 
-        var redirectUrl = Url.Action("MicrosoftCallback", "Account");
+        var redirectUrl = Url.Action("ExternalCallback", "Account");
         var properties = new AuthenticationProperties { RedirectUri = redirectUrl };
-        return Challenge(properties, OpenIdConnectDefaults.AuthenticationScheme);
+
+        return Challenge(properties, _externalAuthService.AuthenticationScheme);
     }
 
     [HttpGet]
-    public async Task<IActionResult> MicrosoftCallback()
+    public async Task<IActionResult> ExternalCallback()
     {
-        // Check if Microsoft authentication is enabled
-        if (!_microsoftAuthService.IsEnabled)
+        // Check if external authentication is enabled
+        if (!_externalAuthService.IsEnabled)
         {
-            return RedirectToAction("Login", new { error = "microsoft_not_configured" });
+            return RedirectToAction("Login", new { error = "external_not_configured" });
         }
 
-        var authenticateResult = await HttpContext.AuthenticateAsync(OpenIdConnectDefaults.AuthenticationScheme);
+        var authenticateResult = await HttpContext.AuthenticateAsync(_externalAuthService.AuthenticationScheme);
 
         if (!authenticateResult.Succeeded)
         {
-            return RedirectToAction("Login", new { error = "microsoft_auth_failed" });
+            return RedirectToAction("Login", new { error = "external_auth_failed" });
         }
 
-        // Get email from Microsoft claims
-        var emailClaim = authenticateResult.Principal?.FindFirst(ClaimTypes.Email)
-                       ?? authenticateResult.Principal?.FindFirst("email")
-                       ?? authenticateResult.Principal?.FindFirst("preferred_username");
+        // Extract email from claims (works for both OIDC and SAML)
+        var email = ExtractEmailFromClaims(authenticateResult.Principal);
 
-        if (emailClaim == null || string.IsNullOrEmpty(emailClaim.Value))
+        if (string.IsNullOrEmpty(email))
         {
             // Clean up any authentication state before redirecting
-            await HttpContext.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme);
+            await HttpContext.SignOutAsync(_externalAuthService.AuthenticationScheme);
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            return RedirectToAction("Login", new { error = "microsoft_auth_failed" });
+            return RedirectToAction("Login", new { error = "external_auth_failed" });
         }
 
-        var email = emailClaim.Value.ToLowerInvariant();
+        email = email.ToLowerInvariant();
 
         // Look up user by email
         var user = await _context.Users
@@ -126,13 +131,18 @@ public class AccountController : Controller
         if (user == null)
         {
             // Completely clean up authentication state
-            await HttpContext.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme);
+            await HttpContext.SignOutAsync(_externalAuthService.AuthenticationScheme);
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
             // Clear any remaining authentication cookies manually
             Response.Cookies.Delete(".AspNetCore.Cookies");
-            Response.Cookies.Delete(".AspNetCore.OpenIdConnect.Nonce");
-            Response.Cookies.Delete(".AspNetCore.Correlation");
+
+            // Clear protocol-specific cookies
+            if (_externalAuthService.Protocol == AuthenticationProtocol.OIDC)
+            {
+                Response.Cookies.Delete(".AspNetCore.OpenIdConnect.Nonce");
+                Response.Cookies.Delete(".AspNetCore.Correlation");
+            }
 
             // Ensure user is not authenticated
             HttpContext.User = new System.Security.Claims.ClaimsPrincipal();
@@ -140,11 +150,37 @@ public class AccountController : Controller
             return RedirectToAction("Login", new { error = "user_not_found" });
         }
 
-        // Sign out from Microsoft and sign in with our cookie scheme
-        await HttpContext.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme);
+        // Sign out from external provider and sign in with our cookie scheme
+        await HttpContext.SignOutAsync(_externalAuthService.AuthenticationScheme);
         await SignInUserAsync(user);
 
         return RedirectToAction("Index", "Home");
+    }
+
+    private string? ExtractEmailFromClaims(ClaimsPrincipal? principal)
+    {
+        if (principal == null) return null;
+
+        // Try different claim types that might contain email
+        var emailClaimTypes = new[]
+        {
+            ClaimTypes.Email,
+            "email",
+            "preferred_username",
+            "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+            "http://schemas.microsoft.com/identity/claims/preferred_username"
+        };
+
+        foreach (var claimType in emailClaimTypes)
+        {
+            var claim = principal.FindFirst(claimType);
+            if (claim != null && !string.IsNullOrEmpty(claim.Value))
+            {
+                return claim.Value;
+            }
+        }
+
+        return null;
     }
 
     private async Task SignInUserAsync(User user)
@@ -227,18 +263,18 @@ public class AccountController : Controller
 
     public async Task<IActionResult> Logout()
     {
-        // Check if user is signed in with Microsoft and if Microsoft auth is enabled
-        var microsoftUser = HttpContext.User.FindFirst("iss")?.Value?.Contains("microsoft");
+        // Check if user is signed in with external auth
+        var hasExternalAuth = HttpContext.User.Identity?.AuthenticationType != CookieAuthenticationDefaults.AuthenticationScheme;
 
         await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
 
-        if (microsoftUser == true && _microsoftAuthService.IsEnabled)
+        if (hasExternalAuth && _externalAuthService.IsEnabled)
         {
-            // Also sign out from Microsoft
+            // Also sign out from external provider
             return SignOut(new AuthenticationProperties
             {
                 RedirectUri = Url.Action("Index", "Home")
-            }, OpenIdConnectDefaults.AuthenticationScheme);
+            }, _externalAuthService.AuthenticationScheme);
         }
 
         return RedirectToAction("Index", "Home");

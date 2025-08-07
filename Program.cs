@@ -1,9 +1,14 @@
+using System.Security.Cryptography.X509Certificates;
+using CoffeeShopApp.Configuration;
 using CoffeeShopApp.Data;
 using CoffeeShopApp.Services;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using Sustainsys.Saml2;
+using Sustainsys.Saml2.Metadata;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,18 +26,35 @@ builder.Services.AddHttpsRedirection(options =>
     options.HttpsPort = 5001;
 });
 
-// Check if Microsoft authentication is configured
-var microsoftClientId = builder.Configuration["Authentication:Microsoft:ClientId"];
-var microsoftClientSecret = builder.Configuration["Authentication:Microsoft:ClientSecret"];
-var isMicrosoftAuthEnabled = !string.IsNullOrEmpty(microsoftClientId) && !string.IsNullOrEmpty(microsoftClientSecret);
+// Configure external authentication
+var externalAuthConfig = new ExternalAuthConfiguration();
+builder.Configuration.GetSection("Authentication:External").Bind(externalAuthConfig);
 
-// Add authentication
+// Register the external auth service
+builder.Services.AddSingleton(externalAuthConfig);
+builder.Services.AddSingleton<IExternalAuthService, ExternalAuthService>();
+
+// Validate configuration
+var tempServiceProvider = builder.Services.BuildServiceProvider();
+var externalAuthService = tempServiceProvider.GetRequiredService<IExternalAuthService>();
+
+if (!externalAuthService.ValidateConfiguration())
+{
+    var protocol = externalAuthService.Protocol;
+    if (protocol != AuthenticationProtocol.None)
+    {
+        throw new InvalidOperationException(
+            $"Invalid {protocol} configuration. Please check your appsettings.json Authentication:External section.");
+    }
+}
+
+// Configure authentication
 var authBuilder = builder.Services.AddAuthentication(options =>
 {
     options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-    if (isMicrosoftAuthEnabled)
+    if (externalAuthService.IsEnabled)
     {
-        options.DefaultChallengeScheme = OpenIdConnectDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = externalAuthService.AuthenticationScheme;
     }
 })
 .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
@@ -44,50 +66,20 @@ var authBuilder = builder.Services.AddAuthentication(options =>
     options.SlidingExpiration = true;
 });
 
-// Only add OpenID Connect if Microsoft authentication is configured
-if (isMicrosoftAuthEnabled)
+// Configure external authentication based on protocol
+if (externalAuthService.IsEnabled)
 {
-    authBuilder.AddOpenIdConnect(OpenIdConnectDefaults.AuthenticationScheme, options =>
+    switch (externalAuthService.Protocol)
     {
-        // Microsoft Azure AD / Office 365 configuration
-        options.Authority = "https://login.microsoftonline.com/common/v2.0";
-        options.ClientId = microsoftClientId!;
-        options.ClientSecret = microsoftClientSecret!;
-        options.ResponseType = OpenIdConnectResponseType.Code;
-        options.CallbackPath = "/signin-microsoft";
-        options.SignedOutCallbackPath = "/signout-callback-microsoft";
+        case AuthenticationProtocol.OIDC:
+            ConfigureOidcAuthentication(authBuilder, externalAuthService);
+            break;
 
-        // Scopes
-        options.Scope.Clear();
-        options.Scope.Add("openid");
-        options.Scope.Add("profile");
-        options.Scope.Add("email");
-
-        // Token validation
-        options.TokenValidationParameters.ValidateIssuer = false; // Allow multiple tenants
-        options.TokenValidationParameters.NameClaimType = "name";
-        options.TokenValidationParameters.RoleClaimType = "role";
-
-        // Save tokens
-        options.SaveTokens = true;
-        options.GetClaimsFromUserInfoEndpoint = true;
-
-        // Events
-        options.Events = new OpenIdConnectEvents
-        {
-            OnRemoteFailure = context =>
-            {
-                context.Response.Redirect("/Account/Login?error=microsoft_auth_failed");
-                context.HandleResponse();
-                return Task.CompletedTask;
-            }
-        };
-    });
+        case AuthenticationProtocol.SAML:
+            ConfigureSamlAuthentication(authBuilder, externalAuthService);
+            break;
+    }
 }
-
-// Register the Microsoft auth availability as a service
-builder.Services.AddSingleton<IMicrosoftAuthService>(provider =>
-    new MicrosoftAuthService(isMicrosoftAuthEnabled));
 
 var app = builder.Build();
 
@@ -99,7 +91,7 @@ if (!app.Environment.IsDevelopment())
 }
 else
 {
-    // Force HTTPS in development for OAuth
+    // Force HTTPS in development for OAuth/SAML
     app.UseHttpsRedirection();
 }
 
@@ -123,3 +115,84 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// Helper methods for authentication configuration
+static void ConfigureOidcAuthentication(AuthenticationBuilder authBuilder, IExternalAuthService externalAuthService)
+{
+    var oidcConfig = externalAuthService.GetOidcConfiguration();
+    if (oidcConfig == null)
+        throw new InvalidOperationException("OIDC configuration is missing");
+
+    authBuilder.AddOpenIdConnect("OpenIdConnect", options =>
+    {
+        options.Authority = oidcConfig.Authority;
+        options.ClientId = oidcConfig.ClientId;
+        options.ClientSecret = oidcConfig.ClientSecret;
+        options.ResponseType = OpenIdConnectResponseType.Code;
+        options.CallbackPath = "/signin-microsoft";
+        options.SignedOutCallbackPath = "/signout-callback-microsoft";
+
+        // Scopes
+        options.Scope.Clear();
+        options.Scope.Add("openid");
+        options.Scope.Add("profile");
+        options.Scope.Add("email");
+
+        // Add any additional scopes
+        foreach (var scope in oidcConfig.AdditionalScopes)
+        {
+            options.Scope.Add(scope);
+        }
+
+        // Token validation
+        options.TokenValidationParameters.ValidateIssuer = false; // Allow multiple tenants
+        options.TokenValidationParameters.NameClaimType = "name";
+        options.TokenValidationParameters.RoleClaimType = "role";
+
+        // Save tokens
+        options.SaveTokens = true;
+        options.GetClaimsFromUserInfoEndpoint = true;
+
+        // Events
+        options.Events = new OpenIdConnectEvents
+        {
+            OnRemoteFailure = context =>
+            {
+                context.Response.Redirect("/Account/Login?error=external_auth_failed");
+                context.HandleResponse();
+                return Task.CompletedTask;
+            }
+        };
+    });
+}
+
+static void ConfigureSamlAuthentication(AuthenticationBuilder authBuilder, IExternalAuthService externalAuthService)
+{
+    var samlConfig = externalAuthService.GetSamlConfiguration();
+    if (samlConfig == null)
+        throw new InvalidOperationException("SAML configuration is missing");
+
+    authBuilder.AddSaml2("Saml2", options =>
+    {
+        // SP Options
+        options.SPOptions.EntityId = new EntityId(samlConfig.EntityId);
+        options.SPOptions.ReturnUrl = new Uri("/Account/ExternalCallback", UriKind.Relative);
+        options.SPOptions.ModulePath = "/saml2";
+
+        // Service Certificate (for signing requests)
+        options.SPOptions.ServiceCertificates.Add(new ServiceCertificate
+        {
+            Use = CertificateUse.Signing,
+            Certificate = new X509Certificate2(samlConfig.CertificatePath, samlConfig.CertificatePassword)
+        });
+
+        // Add Identity Provider from metadata
+        options.IdentityProviders.Add(new IdentityProvider(
+            new EntityId("IdP"), // This will be replaced by metadata
+            options.SPOptions)
+        {
+            MetadataLocation = samlConfig.MetadataUrl,
+            LoadMetadata = true
+        });
+    });
+}

@@ -38,15 +38,19 @@
                     </div>
                 </form>
                 
-                @if (ViewBag.IsMicrosoftAuthEnabled == true)
+                @if (ViewBag.IsExternalAuthEnabled == true)
                 {
                     <div class="text-center mb-3">
                         <span class="text-muted">or</span>
                     </div>
                     
                     <div class="d-grid mb-3">
-                        <a asp-action="LoginWithMicrosoft" class="btn btn-primary">
-                            <i class="fab fa-microsoft"></i> Connect with Microsoft
+                        @{
+                            var buttonClass = ViewBag.ExternalAuthProtocol?.ToString() == "SAML" ? "btn-success" : "btn-primary";
+                            var iconClass = ViewBag.ExternalAuthProtocol?.ToString() == "SAML" ? "fas fa-shield-alt" : "fab fa-microsoft";
+                        }
+                        <a asp-action="LoginWithExternal" class="btn @buttonClass">
+                            <i class="@iconClass"></i> Connect with @ViewBag.ExternalAuthDisplayName
                         </a>
                     </div>
                 }
@@ -68,12 +72,29 @@
                     </small>
                 </div>
                 
-                @if (ViewBag.IsMicrosoftAuthEnabled == true)
+                @if (ViewBag.IsExternalAuthEnabled == true)
                 {
                     <div class="mt-3 p-3 bg-info bg-opacity-10 rounded">
-                        <h6><i class="fab fa-microsoft text-primary"></i> Microsoft Login</h6>
+                        <h6>
+                            @if (ViewBag.ExternalAuthProtocol?.ToString() == "SAML")
+                            {
+                                <i class="fas fa-shield-alt text-success"></i>
+                            }
+                            else
+                            {
+                                <i class="fab fa-microsoft text-primary"></i>
+                            }
+                            @ViewBag.ExternalAuthDisplayName Login
+                        </h6>
                         <small class="text-muted">
-                            Use your Microsoft account to login. Your email must match an existing account in our system.
+                            @if (ViewBag.ExternalAuthProtocol?.ToString() == "SAML")
+                            {
+                                <text>Use your organization's SAML SSO to login. Your email must match an existing account in our system.</text>
+                            }
+                            else
+                            {
+                                <text>Use your Microsoft account to login. Your email must match an existing account in our system.</text>
+                            }
                         </small>
                     </div>
                 }
