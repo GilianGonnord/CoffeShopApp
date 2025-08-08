@@ -27,26 +27,15 @@ builder.Services.AddHttpsRedirection(options =>
 });
 
 // Configure external authentication
-var externalAuthConfig = new ExternalAuthConfiguration();
-builder.Configuration.GetSection("Authentication:External").Bind(externalAuthConfig);
+var externalAuthConfig = new ExternalAuthConfigurationFactory(builder.Configuration).Create();
+var externalAuthService = new ExternalAuthService(externalAuthConfig);
 
-// Register the external auth service
+// Register the external authentication service
 builder.Services.AddSingleton(externalAuthConfig);
-builder.Services.AddSingleton<IExternalAuthService, ExternalAuthService>();
-
-// Validate configuration
-var tempServiceProvider = builder.Services.BuildServiceProvider();
-var externalAuthService = tempServiceProvider.GetRequiredService<IExternalAuthService>();
+builder.Services.AddSingleton<IExternalAuthService>(externalAuthService);
 
 if (!externalAuthService.ValidateConfiguration())
-{
-    var protocol = externalAuthService.Protocol;
-    if (protocol != AuthenticationProtocol.None)
-    {
-        throw new InvalidOperationException(
-            $"Invalid {protocol} configuration. Please check your appsettings.json Authentication:External section.");
-    }
-}
+    throw new InvalidOperationException($"Invalid {externalAuthService.Protocol} configuration. Please check your appsettings.json Authentication:External section.");
 
 // Configure authentication
 var authBuilder = builder.Services.AddAuthentication(options =>
@@ -119,10 +108,7 @@ app.Run();
 // Helper methods for authentication configuration
 static void ConfigureOidcAuthentication(AuthenticationBuilder authBuilder, IExternalAuthService externalAuthService)
 {
-    var oidcConfig = externalAuthService.GetOidcConfiguration();
-    if (oidcConfig == null)
-        throw new InvalidOperationException("OIDC configuration is missing");
-
+    var oidcConfig = externalAuthService.GetOidcConfiguration() ?? throw new InvalidOperationException("OIDC configuration is missing");
     authBuilder.AddOpenIdConnect("OpenIdConnect", options =>
     {
         options.Authority = oidcConfig.Authority;
@@ -168,10 +154,7 @@ static void ConfigureOidcAuthentication(AuthenticationBuilder authBuilder, IExte
 
 static void ConfigureSamlAuthentication(AuthenticationBuilder authBuilder, IExternalAuthService externalAuthService)
 {
-    var samlConfig = externalAuthService.GetSamlConfiguration();
-    if (samlConfig == null)
-        throw new InvalidOperationException("SAML configuration is missing");
-
+    var samlConfig = externalAuthService.GetSamlConfiguration() ?? throw new InvalidOperationException("SAML configuration is missing");
     authBuilder.AddSaml2("Saml2", options =>
     {
         // SP Options

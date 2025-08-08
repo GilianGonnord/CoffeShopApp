@@ -19,11 +19,6 @@ public interface IExternalAuthService
     AuthenticationProtocol Protocol { get; }
 
     /// <summary>
-    /// Gets the display name for the external authentication provider
-    /// </summary>
-    string DisplayName { get; }
-
-    /// <summary>
     /// Gets the authentication scheme name for challenges
     /// </summary>
     string AuthenticationScheme { get; }
@@ -48,28 +43,13 @@ public interface IExternalAuthService
 /// <summary>
 /// Service for managing external authentication (OIDC and SAML)
 /// </summary>
-public class ExternalAuthService : IExternalAuthService
+public class ExternalAuthService(ExternalAuthConfiguration config) : IExternalAuthService
 {
-    private readonly ExternalAuthConfiguration _config;
-
-    public ExternalAuthService(ExternalAuthConfiguration config)
-    {
-        _config = config ?? throw new ArgumentNullException(nameof(config));
-    }
+    /// <inheritdoc />
+    public bool IsEnabled => Protocol != AuthenticationProtocol.None;
 
     /// <inheritdoc />
-    public bool IsEnabled => Protocol != AuthenticationProtocol.None && ValidateConfiguration();
-
-    /// <inheritdoc />
-    public AuthenticationProtocol Protocol => _config.GetProtocol();
-
-    /// <inheritdoc />
-    public string DisplayName => Protocol switch
-    {
-        AuthenticationProtocol.OIDC => "Microsoft",
-        AuthenticationProtocol.SAML => "SAML SSO",
-        _ => "External Login"
-    };
+    public AuthenticationProtocol Protocol => config.GetProtocol();
 
     /// <inheritdoc />
     public string AuthenticationScheme => Protocol switch
@@ -91,31 +71,33 @@ public class ExternalAuthService : IExternalAuthService
         };
     }
 
+    /// <inheritdoc />
+    public OidcConfiguration? GetOidcConfiguration()
+    {
+        return Protocol == AuthenticationProtocol.OIDC ? config.Oidc : null;
+    }
+
+    /// <inheritdoc />
+    public SamlConfiguration? GetSamlConfiguration()
+    {
+        return Protocol == AuthenticationProtocol.SAML ? config.Saml : null;
+    }
+
     private bool ValidateOidcConfiguration()
     {
-        if (_config.Oidc == null)
+        if (config.Oidc == null)
             return false;
 
-        return !string.IsNullOrEmpty(_config.Oidc.ClientId) &&
-               !string.IsNullOrEmpty(_config.Oidc.ClientSecret);
+        return !string.IsNullOrEmpty(config.Oidc.ClientId) &&
+               !string.IsNullOrEmpty(config.Oidc.ClientSecret);
     }
 
     private bool ValidateSamlConfiguration()
     {
-        if (_config.Saml == null)
+        if (config.Saml == null)
             return false;
 
-        return !string.IsNullOrEmpty(_config.Saml.EntityId) &&
-               !string.IsNullOrEmpty(_config.Saml.MetadataUrl);
-    }
-
-    public OidcConfiguration? GetOidcConfiguration()
-    {
-        return Protocol == AuthenticationProtocol.OIDC ? _config.Oidc : null;
-    }
-
-    public SamlConfiguration? GetSamlConfiguration()
-    {
-        return Protocol == AuthenticationProtocol.SAML ? _config.Saml : null;
+        return !string.IsNullOrEmpty(config.Saml.EntityId) &&
+               !string.IsNullOrEmpty(config.Saml.MetadataUrl);
     }
 }

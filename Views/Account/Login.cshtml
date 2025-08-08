@@ -15,7 +15,7 @@
                         <i class="fas fa-exclamation-triangle"></i> @ViewBag.Error
                     </div>
                 }
-                
+
                 <form method="post">
                     <div class="mb-3">
                         <label for="username" class="form-label">
@@ -23,47 +23,43 @@
                         </label>
                         <input type="text" class="form-control" id="username" name="username" required>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="password" class="form-label">
                             <i class="fas fa-lock"></i> Password
                         </label>
                         <input type="password" class="form-control" id="password" name="password" required>
                     </div>
-                    
+
                     <div class="d-grid mb-3">
                         <button type="submit" class="btn btn-coffee">
                             <i class="fas fa-sign-in-alt"></i> Login
                         </button>
                     </div>
                 </form>
-                
+
                 @if (ViewBag.IsExternalAuthEnabled == true)
                 {
                     <div class="text-center mb-3">
                         <span class="text-muted">or</span>
                     </div>
-                    
+
                     <div class="d-grid mb-3">
-                        @{
-                            var buttonClass = ViewBag.ExternalAuthProtocol?.ToString() == "SAML" ? "btn-success" : "btn-primary";
-                            var iconClass = ViewBag.ExternalAuthProtocol?.ToString() == "SAML" ? "fas fa-shield-alt" : "fab fa-microsoft";
-                        }
-                        <a asp-action="LoginWithExternal" class="btn @buttonClass">
-                            <i class="@iconClass"></i> Connect with @ViewBag.ExternalAuthDisplayName
+                        <a asp-action="LoginWithExternal" class="btn btn-primary">
+                            <i class="fab fa-microsoft"></i> Connect with @ViewBag.ExternalAuthDisplayName
                         </a>
                     </div>
                 }
-                
+
                 <hr>
                 <div class="text-center">
-                    <p class="mb-0">Don't have an account? 
+                    <p class="mb-0">Don't have an account?
                         <a asp-action="Register" class="text-decoration-none" style="color: var(--coffee-brown);">
                             Register here
                         </a>
                     </p>
                 </div>
-                
+
                 <div class="mt-4 p-3 bg-light rounded">
                     <h6><i class="fas fa-info-circle coffee-icon"></i> Demo Accounts</h6>
                     <small class="text-muted">
@@ -71,30 +67,17 @@
                         <strong>Barista:</strong> barista / barista123
                     </small>
                 </div>
-                
+
                 @if (ViewBag.IsExternalAuthEnabled == true)
                 {
                     <div class="mt-3 p-3 bg-info bg-opacity-10 rounded">
                         <h6>
-                            @if (ViewBag.ExternalAuthProtocol?.ToString() == "SAML")
-                            {
-                                <i class="fas fa-shield-alt text-success"></i>
-                            }
-                            else
-                            {
-                                <i class="fab fa-microsoft text-primary"></i>
-                            }
+                            <i class="fab fa-microsoft text-primary"></i>
                             @ViewBag.ExternalAuthDisplayName Login
                         </h6>
                         <small class="text-muted">
-                            @if (ViewBag.ExternalAuthProtocol?.ToString() == "SAML")
-                            {
-                                <text>Use your organization's SAML SSO to login. Your email must match an existing account in our system.</text>
-                            }
-                            else
-                            {
-                                <text>Use your Microsoft account to login. Your email must match an existing account in our system.</text>
-                            }
+                            <text>Use your Microsoft account to login. Your email must match an existing account in our
+                                system.</text>
                         </small>
                     </div>
                 }

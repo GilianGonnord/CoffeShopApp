@@ -98,3 +98,13 @@ public class SamlConfiguration
     /// </summary>
     public bool RequireSignedResponses { get; set; } = true;
 }
+
+public class ExternalAuthConfigurationFactory(IConfiguration configuration)
+{
+    public ExternalAuthConfiguration Create()
+    {
+        var config = new ExternalAuthConfiguration();
+        configuration.GetSection("Authentication:External").Bind(config);
+        return config;
+    }
+}

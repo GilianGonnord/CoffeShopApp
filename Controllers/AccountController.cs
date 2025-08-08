@@ -25,27 +25,17 @@ public class AccountController : Controller
     {
         if (!string.IsNullOrEmpty(error))
         {
-            switch (error)
+            ViewBag.Error = error switch
             {
-                case "external_auth_failed":
-                    ViewBag.Error = $"{_externalAuthService.DisplayName} authentication failed. Please try again.";
-                    break;
-                case "user_not_found":
-                    ViewBag.Error = $"No account found with your {_externalAuthService.DisplayName} email address. Please contact an administrator.";
-                    break;
-                case "external_not_configured":
-                    ViewBag.Error = "External authentication is not configured on this server.";
-                    break;
-                default:
-                    ViewBag.Error = "An error occurred during authentication.";
-                    break;
-            }
+                "external_auth_failed" => $"External authentication failed. Please try again.",
+                "user_not_found" => $"No account found with your external email address. Please contact an administrator.",
+                "external_not_configured" => "External authentication is not configured on this server.",
+                _ => "An error occurred during authentication.",
+            };
         }
 
         // Pass external auth information to the view
         ViewBag.IsExternalAuthEnabled = _externalAuthService.IsEnabled;
-        ViewBag.ExternalAuthDisplayName = _externalAuthService.DisplayName;
-        ViewBag.ExternalAuthProtocol = _externalAuthService.Protocol.ToString();
 
         return View();
     }
@@ -57,8 +47,6 @@ public class AccountController : Controller
         {
             ViewBag.Error = "Username and password are required.";
             ViewBag.IsExternalAuthEnabled = _externalAuthService.IsEnabled;
-            ViewBag.ExternalAuthDisplayName = _externalAuthService.DisplayName;
-            ViewBag.ExternalAuthProtocol = _externalAuthService.Protocol.ToString();
             return View();
         }
 
@@ -70,8 +58,6 @@ public class AccountController : Controller
         {
             ViewBag.Error = "Invalid username or password.";
             ViewBag.IsExternalAuthEnabled = _externalAuthService.IsEnabled;
-            ViewBag.ExternalAuthDisplayName = _externalAuthService.DisplayName;
-            ViewBag.ExternalAuthProtocol = _externalAuthService.Protocol.ToString();
             return View();
         }
 
@@ -187,9 +173,9 @@ public class AccountController : Controller
     {
         var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-            new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.Email, user.Email)
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Name, user.Username),
+            new(ClaimTypes.Email, user.Email)
         };
 
         // Add custom claims
@@ -207,58 +193,6 @@ public class AccountController : Controller
 
         await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme,
             new ClaimsPrincipal(claimsIdentity), authProperties);
-    }
-
-    [HttpGet]
-    public IActionResult Register()
-    {
-        return View();
-    }
-
-    [HttpPost]
-    public async Task<IActionResult> Register(string username, string email, string password)
-    {
-        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
-        {
-            ViewBag.Error = "All fields are required.";
-            return View();
-        }
-
-        if (await _context.Users.AnyAsync(u => u.Username == username))
-        {
-            ViewBag.Error = "Username already exists.";
-            return View();
-        }
-
-        if (await _context.Users.AnyAsync(u => u.Email == email))
-        {
-            ViewBag.Error = "Email already exists.";
-            return View();
-        }
-
-        var user = new User
-        {
-            Username = username,
-            Email = email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password)
-        };
-
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-
-        // Add default claim
-        var defaultClaim = new UserClaim
-        {
-            UserId = user.Id,
-            ClaimType = CoffeeClaims.CanViewCoffee,
-            ClaimValue = "true"
-        };
-
-        _context.Claims.Add(defaultClaim);
-        await _context.SaveChangesAsync();
-
-        ViewBag.Success = "Registration successful! You can now login.";
-        return View();
     }
 
     public async Task<IActionResult> Logout()
